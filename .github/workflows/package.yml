@@ -14,6 +14,7 @@ env:
   openwrt_version: SNAPSHOT
   profile: asus_4g-ax56
   packages: "luci htop kmod-usb-net-cdc-ether -kmod-usb-net-cdc-ncm luci-proto-modemmanager"
+  netbird_version: ""
 
 jobs:
 
@@ -184,13 +185,14 @@ jobs:
           find image-files -maxdepth 4 -type f -ls
 
       - name: Build OpenWrt image (ImageBuilder Action)
-        uses: izer-xyz/openwrt-imagebuilder-action@v6
+        uses: herbetom/openwrt-gh-action-imagebuilder@v1
         with:
-          image: ${{ env.image }}
-          openwrt-version: ${{ env.openwrt_version }}
+          release: ${{ env.openwrt_version }}
+          target-name: ${{ env.image }}
           profile: ${{ env.profile }}
-          files: image-files
-          packages: ${{ env.packages }}
+        env:
+          PACKAGES: ${{ env.packages }}
+          FILES_DIR: ${{ github.workspace }}/image-files
       
       - name: Release
         uses: softprops/action-gh-release@v1
