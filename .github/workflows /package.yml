@@ -9,6 +9,12 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+env:
+  image: ramips-mt7621
+  openwrt_version: SNAPSHOT
+  profile: asus_4g-ax56
+  packages: "luci htop kmod-usb-net-cdc-ether -kmod-usb-net-cdc-ncm luci-proto-modemmanager"
+
 jobs:
 
   create-image:
@@ -17,25 +23,174 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      
-      - uses: actions/checkout@v3
-      
-      - name: Load configuration from repo
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Prepare image-files overlay dir
         run: |
-          find .
-          cat config
-          cat config >> $GITHUB_ENV
-       
-      - name: Build openwrt image
-        uses: izer-xyz/openwrt-imagebuilder-action@v5
+          rm -rf image-files
+          mkdir -p image-files/usr/bin
+          mkdir -p image-files/etc/init.d
+          mkdir -p image-files/etc/uci-defaults
+
+      - name: Download latest Netbird release (auto-detect mipsle asset)
+        run: |
+          # API URL for the latest release
+          GITHUB_API="https://api.github.com/repos/netbirdio/netbird/releases/latest"
+
+          echo "Querying latest Netbird release via public GitHub API..."
+          NETBIRD_TAG=$(curl -sSL "$GITHUB_API" | jq -r '.tag_name // empty')
+
+          if [ -z "$NETBIRD_TAG" ]; then
+            echo "Could not determine Netbird tag" >&2
+            exit 1
+          fi
+
+          NETBIRD_VERSION="${NETBIRD_TAG#v}"
+          echo "netbird_version=$NETBIRD_TAG" >> "$GITHUB_ENV"
+
+          ASSET_URL="https://github.com/netbirdio/netbird/releases/download/${NETBIRD_TAG}/netbird_${NETBIRD_VERSION}_linux_mipsle_hardfloat.tar.gz"
+
+          echo "Downloading Netbird ${NETBIRD_TAG} asset from $ASSET_URL"
+          curl -L -o /tmp/netbird.tar.gz "$ASSET_URL"
+
+      - name: Extract Netbird binary into overlay
+        run: |
+          # Locate the netbird binary inside the tarball and copy it into the overlay
+          BIN=$(tar -tzf /tmp/netbird.tar.gz | grep -E '/?netbird$' | head -n1)
+          if [ -z "$BIN" ]; then
+            echo "Netbird binary not found in archive" >&2
+            exit 1
+          fi
+          tar -xzf /tmp/netbird.tar.gz -C /tmp "$BIN"
+          cp "/tmp/$BIN" image-files/usr/bin/netbird
+          chmod +x image-files/usr/bin/netbird
+
+      - name: Add simple OpenWrt init script (optional)
+        run: |
+          cat > image-files/etc/init.d/netbird <<'EOF'
+          #!/bin/sh /etc/rc.common
+
+          START=99
+          STOP=10
+
+          USE_PROCD=1
+
+          start_service() {
+                  procd_open_instance
+                  procd_set_param command /usr/bin/netbird
+                  procd_set_param env NB_STATE_DIR="/root/.config/netbird"
+                  procd_append_param command service run
+                  procd_set_param pidfile /var/run/netbird.pid
+                  procd_close_instance
+          }
+          EOF
+          chmod +x image-files/etc/init.d/netbird
+
+      - name: Add default Netbird interface and firewall
+        run: |
+          cat > image-files/etc/uci-defaults/60-netbird-config <<'EOF'
+          #!/bin/sh
+
+          netbird_section="network.netbird"
+
+          if ! uci -q get "$netbird_section" >/dev/null 2>&1; then
+                  uci batch <<'UCI_CFG'
+                  set network.netbird=interface
+                  set network.netbird.proto='none'
+                  set network.netbird.device='wt0'
+                  UCI_CFG
+          fi
+
+          netbird_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.name='netbird'/\1/p" | head -n1)"
+
+          if [ -z "$netbird_zone" ]; then
+                  netbird_zone=$(uci add firewall zone)
+          fi
+
+          uci set firewall."$netbird_zone".name='netbird'
+          uci set firewall."$netbird_zone".input='ACCEPT'
+          uci set firewall."$netbird_zone".output='ACCEPT'
+          uci set firewall."$netbird_zone".forward='ACCEPT'
+          uci -q del_list firewall."$netbird_zone".network 'netbird'
+          uci add_list firewall."$netbird_zone".network 'netbird'
+
+          ensure_forward() {
+                  local src="$1"
+                  local dest="$2"
+                  local found=""
+
+                  for section in $(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.src='$src'/\1/p"); do
+                          if [ "$(uci -q get "${section}.dest")" = "$dest" ]; then
+                                  found=1
+                                  break
+                          fi
+                  done
+
+                  if [ -z "$found" ]; then
+                          local new_section
+                          new_section=$(uci add firewall forwarding)
+                          uci set firewall."$new_section".src="$src"
+                          uci set firewall."$new_section".dest="$dest"
+                  fi
+          }
+
+          lan_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.name='lan'/\1/p" | head -n1)"
+
+            if [ -n "$lan_zone" ]; then
+              ensure_forward 'lan' 'netbird'
+            fi
+
+          uci commit network
+          uci commit firewall
+          EOF
+          chmod +x image-files/etc/uci-defaults/60-netbird-config
+      - name: Add default LTE interface config
+        run: |
+          cat > image-files/etc/uci-defaults/50-lte-config <<'EOF'
+          #!/bin/sh
+
+          lte_section="network.LTE"
+
+          if uci -q get "$lte_section" >/dev/null 2>&1; then
+                  exit 0
+          fi
+
+          uci batch <<'UCI_CFG'
+          set network.LTE=interface
+          set network.LTE.proto='modemmanager'
+          set network.LTE.device='/sys/devices/platform/1e1c0000.xhci/usb1/1-1'
+          set network.LTE.apn='internet'
+          set network.LTE.allowedauth='none'
+          set network.LTE.iptype='ipv4'
+          set network.LTE.loglevel='ERR'
+          UCI_CFG
+
+          wan_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.@zone\[[0-9]\+\]\)\.name='wan'/\1/p" | head -n1)"
+
+          if [ -n "$wan_zone" ]; then
+                  uci -q del_list "${wan_zone}.network" 'LTE'
+                  uci add_list "${wan_zone}.network" 'LTE'
+          fi
+
+          uci commit network
+          uci commit firewall
+          EOF
+          chmod +x image-files/etc/uci-defaults/50-lte-config
+
+      - name: Show overlay contents (debug)
+        run: |
+          echo "Overlay tree:"
+          find image-files -maxdepth 4 -type f -ls
+
+      - name: Build OpenWrt image (ImageBuilder Action)
+        uses: izer-xyz/openwrt-imagebuilder-action@v6
         with:
           image: ${{ env.image }}
-          profile: ${{ env.profile }}
           openwrt-version: ${{ env.openwrt_version }}
+          profile: ${{ env.profile }}
+          files: image-files
           packages: ${{ env.packages }}
-          debug: ${{ env.debug }}
-          files: files
-          disabled-services: ${{ env.disabled_services }}
       
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -45,6 +200,7 @@ jobs:
             Custom OpenWrt build ...
             
             * OpenWrt version: ${{ env.openwrt_version }}
+            * Netbird version: ${{ env.netbird_version }}
             * Image: ${{ env.image }}
             * Profile: ${{ env.profile }}
             * Packages: ${{ env.packages }}
