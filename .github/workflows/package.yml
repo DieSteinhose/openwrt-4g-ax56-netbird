@@ -53,7 +53,7 @@ jobs:
           NETBIRD_VERSION="${NETBIRD_TAG#v}"
           echo "netbird_version=$NETBIRD_TAG" >> "$GITHUB_ENV"
 
-          ASSET_URL="https://github.com/netbirdio/netbird/releases/download/${NETBIRD_TAG}/netbird_${NETBIRD_VERSION}_linux_mipsle_hardfloat.tar.gz"
+          ASSET_URL="https://github.com/netbirdio/netbird/releases/download/${NETBIRD_TAG}/netbird_${NETBIRD_VERSION}_linux_mipsle_softfloat.tar.gz"
 
           echo "Downloading Netbird ${NETBIRD_TAG} asset from $ASSET_URL"
           curl -L -o /tmp/netbird.tar.gz "$ASSET_URL"
