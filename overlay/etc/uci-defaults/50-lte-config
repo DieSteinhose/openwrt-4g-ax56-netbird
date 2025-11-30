@@ -1,0 +1,27 @@
+#!/bin/sh
+
+lte_section="network.LTE"
+
+if uci -q get "$lte_section" >/dev/null 2>&1; then
+        exit 0
+fi
+
+uci batch <<'UCI_CFG'
+set network.LTE=interface
+set network.LTE.proto='modemmanager'
+set network.LTE.device='/sys/devices/platform/1e1c0000.xhci/usb1/1-1'
+set network.LTE.apn='internet'
+set network.LTE.allowedauth='none'
+set network.LTE.iptype='ipv4'
+set network.LTE.loglevel='ERR'
+UCI_CFG
+
+wan_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.@zone\[[0-9]\+\]\)\.name='wan'/\1/p" | head -n1)"
+
+if [ -n "$wan_zone" ]; then
+        uci -q del_list "${wan_zone}.network" 'LTE'
+        uci add_list "${wan_zone}.network" 'LTE'
+fi
+
+uci commit network
+uci commit firewall

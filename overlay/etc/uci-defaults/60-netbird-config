@@ -1,0 +1,53 @@
+#!/bin/sh
+
+netbird_section="network.netbird"
+
+if ! uci -q get "$netbird_section" >/dev/null 2>&1; then
+        uci batch <<'UCI_CFG'
+        set network.netbird=interface
+        set network.netbird.proto='none'
+        set network.netbird.device='wt0'
+        UCI_CFG
+fi
+
+netbird_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.name='netbird'/\1/p" | head -n1)"
+
+if [ -z "$netbird_zone" ]; then
+        netbird_zone=$(uci add firewall zone)
+fi
+
+uci set firewall."$netbird_zone".name='netbird'
+uci set firewall."$netbird_zone".input='ACCEPT'
+uci set firewall."$netbird_zone".output='ACCEPT'
+uci set firewall."$netbird_zone".forward='ACCEPT'
+uci -q del_list firewall."$netbird_zone".network 'netbird'
+uci add_list firewall."$netbird_zone".network 'netbird'
+
+ensure_forward() {
+        local src="$1"
+        local dest="$2"
+        local found=""
+
+        for section in $(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.src='$src'/\1/p"); do
+                if [ "$(uci -q get "${section}.dest")" = "$dest" ]; then
+                        found=1
+                        break
+                fi
+        done
+
+        if [ -z "$found" ]; then
+                local new_section
+                new_section=$(uci add firewall forwarding)
+                uci set firewall."$new_section".src="$src"
+                uci set firewall."$new_section".dest="$dest"
+        fi
+}
+
+lan_zone="$(uci show firewall 2>/dev/null | sed -n "s/^\(firewall\.[^.]*\)\.name='lan'/\1/p" | head -n1)"
+
+if [ -n "$lan_zone" ]; then
+        ensure_forward 'lan' 'netbird'
+fi
+
+uci commit network
+uci commit firewall
