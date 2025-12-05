@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Make watchdog script executable
+chmod +x /usr/bin/modem-watchdog.sh
+
+# Add to crontab if not present
+if ! grep -q "modem-watchdog.sh" /etc/crontabs/root; then
+    echo "*/5 * * * * /usr/bin/modem-watchdog.sh" >> /etc/crontabs/root
+    /etc/init.d/cron restart
+fi
+
+exit 0
