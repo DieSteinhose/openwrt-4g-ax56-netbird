@@ -1,0 +1,6 @@
+config netbird 'general'
+	option enabled '0'
+	option management_url 'https://api.netbird.io'
+	option setup_key ''
+	option allow_server_ssh '0'
+	option enable_ssh_root '0'

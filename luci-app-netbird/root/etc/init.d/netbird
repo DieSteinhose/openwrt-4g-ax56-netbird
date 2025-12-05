@@ -1,0 +1,50 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+
+USE_PROCD=1
+
+start_service() {
+	config_load netbird
+	config_get_bool enabled general enabled 0
+	config_get setup_key general setup_key
+	config_get management_url general management_url
+
+	if [ "$enabled" -eq 1 ]; then
+		procd_open_instance
+		procd_set_param command /usr/bin/netbird
+		procd_set_param env NB_STATE_DIR="/root/.config/netbird"
+		procd_append_param command service run
+		procd_set_param pidfile /var/run/netbird.pid
+		procd_set_param respawn
+		procd_close_instance
+	fi
+}
+
+service_triggers() {
+	procd_add_reload_trigger "netbird"
+}
+
+reload_service() {
+	stop
+	start
+	
+	config_load netbird
+	config_get_bool enabled general enabled 0
+	config_get setup_key general setup_key
+	config_get management_url general management_url
+	config_get_bool allow_server_ssh general allow_server_ssh 0
+	config_get_bool enable_ssh_root general enable_ssh_root 0
+
+	if [ "$enabled" -eq 1 ] && [ -n "$setup_key" ]; then
+		# Wait for service to start
+		sleep 5
+		
+		extra_args=""
+		[ "$allow_server_ssh" -eq 1 ] && extra_args="$extra_args --allow-server-ssh"
+		[ "$enable_ssh_root" -eq 1 ] && extra_args="$extra_args --enable-ssh-root"
+
+		/usr/bin/netbird up --setup-key "$setup_key" --management-url "$management_url" $extra_args
+	fi
+}

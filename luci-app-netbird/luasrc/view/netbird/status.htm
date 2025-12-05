@@ -1,0 +1,19 @@
+<script type="text/javascript">//<![CDATA[
+	XHR.poll(5, '<%=url("admin/services/netbird/status")%>', null,
+		function(x, data) {
+			var tb = document.getElementById('netbird_status');
+			if (data && tb) {
+				tb.innerHTML = data.status.replace(/\n/g, '<br />');
+			}
+		}
+	);
+//]]></script>
+
+<fieldset class="cbi-section">
+	<legend><%:Netbird Status%></legend>
+	<div class="cbi-section-descr">
+		<div id="netbird_status">
+			<em><%:Collecting data...%></em>
+		</div>
+	</div>
+</fieldset>
