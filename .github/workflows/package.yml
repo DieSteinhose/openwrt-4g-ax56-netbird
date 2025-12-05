@@ -45,6 +45,20 @@ jobs:
           test -d overlay
           cp -R overlay/. image-files/
 
+      - name: Install custom LuCI app into overlay
+        run: |
+          # Copy root files (etc/config, etc/init.d)
+          if [ -d "luci-app-netbird/root" ]; then
+            cp -R luci-app-netbird/root/. image-files/
+            chmod +x image-files/etc/init.d/netbird
+          fi
+
+          # Copy Lua sources to LuCI directory structure
+          if [ -d "luci-app-netbird/luasrc" ]; then
+            mkdir -p image-files/usr/lib/lua/luci
+            cp -R luci-app-netbird/luasrc/. image-files/usr/lib/lua/luci/
+          fi
+
       - name: Download latest Netbird release (auto-detect mipsle asset)
         run: |
           # API URL for the latest release
