@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Check if hostname is still the default
+cur_hostname=$(uci -q get system.@system[0].hostname)
+
+if [ "$cur_hostname" = "OpenWrt" ] || [ -z "$cur_hostname" ]; then
+    # Try to get MAC from br-lan, fallback to eth0
+    mac=$(cat /sys/class/net/br-lan/address 2>/dev/null)
+    if [ -z "$mac" ]; then
+        mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
+    fi
+
+    if [ -n "$mac" ]; then
+        # Take last 4 chars of MAC (last 2 bytes)
+        suffix=$(echo "$mac" | awk -F: '{print $(NF-1)$NF}' | tr 'a-z' 'A-Z')
+        new_hostname="OpenWrt-$suffix"
+
+        uci set system.@system[0].hostname="$new_hostname"
+        uci commit system
+    fi
+fi
+
+exit 0
