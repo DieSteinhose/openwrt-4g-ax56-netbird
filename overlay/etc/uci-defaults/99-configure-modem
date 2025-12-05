@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Configure Modem
+# This works on Revision: 16121.1000.00.01.01.43
+echo -e "AT+GTAUTOCONNECT=1\r\n" > /dev/ttyUSB0
+echo -e "AT+GTUSBMODE=34\r\n" > /dev/ttyUSB0
+
+exit 0
