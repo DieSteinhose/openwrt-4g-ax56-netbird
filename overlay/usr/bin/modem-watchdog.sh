@@ -3,7 +3,7 @@
 # Modem Watchdog Script
 # Checks internet connectivity and attempts to reconnect the modem if down.
 
-TARGET="8.8.8.8"
+TARGET="9.9.9.9"
 INTERFACE="LTE"
 
 if ping -c 1 -W 5 $TARGET > /dev/null; then
