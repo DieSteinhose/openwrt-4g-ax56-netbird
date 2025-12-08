@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+# Install pre-bundled ATC packages from /root/atc without network access
+DIR=/root/atc
+if [ -d "$DIR" ]; then
+    for pkg in "$DIR"/*.apk; do
+        [ -f "$pkg" ] || continue
+        apk add --allow-untrusted "$pkg"
+    done
+fi
+
+exit 0
