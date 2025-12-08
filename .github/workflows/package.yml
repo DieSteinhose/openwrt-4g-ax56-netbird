@@ -45,6 +45,28 @@ jobs:
           test -d overlay
           cp -R overlay/. image-files/
 
+      - name: Download and install ATC .apk into overlay
+        run: |
+          set -e
+          mkdir -p atc-pkgs
+          urls=(
+            "https://github.com/mrhaav/openwrt/raw/master/atc/fib-fg621_ea/atc-fib-fg621_ea-2025.06.06-r2.apk"
+            "https://github.com/mrhaav/openwrt/raw/master/atc/luci-proto-atc-2025.01.10-r2.apk"
+            "https://github.com/mrhaav/openwrt/raw/master/atc/rssi_d/atc-rssi_d-2025.03.17-r1.apk"
+          )
+          for url in "${urls[@]}"; do
+            out="atc-pkgs/$(basename "$url")"
+            echo "Downloading $url"
+            curl -fL -o "$out" "$url"
+          done
+
+          # Use Alpine's apk tool inside a container to install into the overlay rootfs (bake into image)
+          docker run --rm \
+            -v "$PWD/image-files:/rootfs" \
+            -v "$PWD/atc-pkgs:/pkgs" \
+            alpine:3 \
+            sh -c "apk --root /rootfs --initdb add --allow-untrusted /pkgs/*.apk"
+
       - name: Download latest Netbird release (auto-detect mipsle asset)
         run: |
           # API URL for the latest release
