@@ -18,11 +18,11 @@ env:
   profile: asus_4g-ax56
   # Base packages plus Netbird VPN dependencies (beginning with the second line)
   packages: >-
-    luci htop nano picocom kmod-usb-net-cdc-ncm
+    luci htop nano picocom luci-app-ttyd mwan3 luci-app-mwan3
     kmod-crypto-lib-chacha20 kmod-crypto-lib-poly1305 kmod-crypto-lib-chacha20poly1305
     kmod-crypto-kpp kmod-crypto-lib-curve25519 kmod-udptunnel4 kmod-udptunnel6
     kmod-wireguard kmod-tun
-    comgt kmod-usb-serial-option
+    comgt kmod-usb-serial-option kmod-usb-net-cdc-ncm
   netbird_version: ""
 
 jobs:
