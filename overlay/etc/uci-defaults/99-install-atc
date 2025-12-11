@@ -1,7 +1,12 @@
 #!/bin/sh
 set -e
 
-# Minimal 99-install-atc: install all bundled .apk files in /root/atc in a single apk add call
+# 99-install-atc: install bundled ATC packages from /root/atc
+# If luci-proto-atc is already installed, skip.
+
+if apk info -e luci-proto-atc >/dev/null 2>&1; then
+    exit 0
+fi
 
 DIR=/root/atc
 [ -d "$DIR" ] || exit 0
@@ -14,7 +19,7 @@ done
 
 [ "$#" -gt 0 ] || exit 0
 
-# Install all found package files in one apk invocation. Reboot/cleanup handled by 98/100.
-apk add --allow-untrusted --no-network "$@"
+# Install all found package files in one apk invocation.
+apk add --allow-untrusted --no-network "$@" && reboot
 
 exit 0
