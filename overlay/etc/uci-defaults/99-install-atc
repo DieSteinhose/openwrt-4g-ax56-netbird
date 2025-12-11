@@ -1,44 +1,20 @@
 #!/bin/sh
 set -e
 
-# Marker to avoid repeating install/reboot on every boot
-MARKER=/etc/uci-installed-atc
-if [ -f "$MARKER" ]; then
-    logger -t 99-install-atc "Marker $MARKER present — skipping pre-bundled ATC installation"
-    exit 0
-fi
+# Minimal 99-install-atc: install all bundled .apk files in /root/atc in a single apk add call
 
-# Install pre-bundled ATC packages from /root/atc only when luci-proto-atc is missing
-if ! apk info -e luci-proto-atc >/dev/null 2>&1; then
-    DIR=/root/atc
-    if [ -d "$DIR" ]; then
-        set --
-        for pkg in "$DIR"/*.apk; do
-            [ -f "$pkg" ] || continue
-            set -- "$@" "$pkg"
-        done
-        if [ "$#" -gt 0 ]; then
-            # Log what we'll install
-            PACKS=""
-            for p in "$@"; do
-                PACKS="$PACKS ${p##*/}"
-            done
-            logger -t 99-install-atc "Found $# pre-bundled ATC package(s):$PACKS"
+DIR=/root/atc
+[ -d "$DIR" ] || exit 0
 
-            # Try to install all packages in one apk add command. Only reboot on success.
-            if apk add --allow-untrusted --no-network "$@"; then
-                logger -t 99-install-atc "Successfully installed $# package(s):$PACKS"
-                # create marker so this script doesn't trigger again
-                touch "$MARKER" 2>/dev/null || logger -t 99-install-atc "Warning: failed to create marker $MARKER"
-                logger -t 99-install-atc "Rebooting to complete installation of pre-bundled ATC packages"
-                reboot
-            else
-                logger -t 99-install-atc "Failed to install pre-bundled ATC packages:$PACKS"
-            fi
-        else
-            logger -t 99-install-atc "No pre-bundled .apk files found in $DIR"
-        fi
-    fi
-fi
+set --
+for pkg in "$DIR"/*.apk; do
+    [ -f "$pkg" ] || continue
+    set -- "$@" "$pkg"
+done
+
+[ "$#" -gt 0 ] || exit 0
+
+# Install all found package files in one apk invocation. Reboot/cleanup handled by 98/100.
+apk add --allow-untrusted --no-network "$@"
 
 exit 0

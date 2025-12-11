@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+# 100-check-atc-2
+# If luci-proto-atc is installed, remove 98 and 99 and reboot to finalize.
+
+SCRIPT98=/etc/uci-defaults/98-check-atc-1
+SCRIPT99=/etc/uci-defaults/99-install-atc
+
+if apk info -e luci-proto-atc >/dev/null 2>&1; then
+    rm -f "$SCRIPT98" "$SCRIPT99" >/dev/null 2>&1
+    logger -t 100-check-atc "luci-proto-atc present; removed $SCRIPT98 and $SCRIPT99; rebooting"
+    reboot
+fi
+
+exit 0
