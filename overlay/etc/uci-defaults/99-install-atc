@@ -11,8 +11,23 @@ if ! apk info -e luci-proto-atc >/dev/null 2>&1; then
             set -- "$@" "$pkg"
         done
         if [ "$#" -gt 0 ]; then
-            apk add --allow-untrusted --no-network "$@"
-            reboot
+            # Log what we'll install
+            PACKS=""
+            for p in "$@"; do
+                PACKS="$PACKS ${p##*/}"
+            done
+            logger -t 99-install-atc "Found $# pre-bundled ATC package(s):$PACKS"
+
+            # Try to install all packages in one apk add command. Only reboot on success.
+            if apk add --allow-untrusted --no-network "$@"; then
+                logger -t 99-install-atc "Successfully installed $# package(s):$PACKS"
+                logger -t 99-install-atc "Rebooting to complete installation of pre-bundled ATC packages"
+                reboot
+            else
+                logger -t 99-install-atc "Failed to install pre-bundled ATC packages:$PACKS"
+            fi
+        else
+            logger -t 99-install-atc "No pre-bundled .apk files found in $DIR"
         fi
     fi
 fi
