@@ -5,11 +5,15 @@ set -e
 if ! apk info -e luci-proto-atc >/dev/null 2>&1; then
     DIR=/root/atc
     if [ -d "$DIR" ]; then
+        set --
         for pkg in "$DIR"/*.apk; do
             [ -f "$pkg" ] || continue
-            apk add --allow-untrusted --no-network "$pkg"
+            set -- "$@" "$pkg"
         done
-        reboot
+        if [ "$#" -gt 0 ]; then
+            apk add --allow-untrusted --no-network "$@"
+            reboot
+        fi
     fi
 fi
 
