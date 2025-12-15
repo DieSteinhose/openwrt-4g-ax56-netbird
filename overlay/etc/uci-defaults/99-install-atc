@@ -1,31 +1,30 @@
 #!/bin/sh
 set -e
 
-# 99-install-atc: install bundled ATC packages from /root/atc
-# If luci-proto-atc is already installed, skip.
+MARKER="/etc/uci-defaults/.apk_installed_once"
+PKG_DIR="/root/atc"
 
-if apk info -e luci-proto-atc >/dev/null 2>&1; then
-    exit 0
+# Already done? Then exit.
+[ -f "$MARKER" ] && exit 0
+
+# Ensure packages exist
+if ! ls "$PKG_DIR"/*.apk >/dev/null 2>&1; then
+    logger -t uci-defaults "No .apk packages found in $PKG_DIR"
+    exit 1
 fi
 
-DIR=/root/atc
-[ -d "$DIR" ] || exit 0
-
-set --
-for pkg in "$DIR"/*.apk; do
-    [ -f "$pkg" ] || continue
-    set -- "$@" "$pkg"
+# Install packages
+for pkg in "$PKG_DIR"/*.apk; do
+    logger -t uci-defaults "Installing $pkg"
+    apk add --allow-untrusted --no-network "$pkg"
 done
 
-[ "$#" -gt 0 ] || exit 0
+# Set marker and remove this script before rebooting
+touch "$MARKER"
+rm -f "$0"
 
-# Install all found package files in one apk invocation.
-apk add --allow-untrusted --no-network "$@"
-
-# Reboot is needed for the packages to become available, but we must not reboot
-# *during* uci-defaults execution, otherwise the script won't get cleaned up and
-# we'll end up in a reboot loop. Schedule a reboot shortly after this script exits.
-sync
-( sleep 5; reboot ) >/dev/null 2>&1 &
+# Trigger a one-time reboot (in background so the script can finish cleanly)
+logger -t uci-defaults "Packages installed, rebooting"
+( sleep 2; reboot ) &
 
 exit 0
