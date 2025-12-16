@@ -1,11 +1,7 @@
 #!/bin/sh
 set -e
 
-MARKER="/etc/uci-defaults/.apk_installed_once"
 PKG_DIR="/root/atc"
-
-# Already done? Then exit.
-[ -f "$MARKER" ] && exit 0
 
 # Ensure packages exist
 if ! ls "$PKG_DIR"/*.apk >/dev/null 2>&1; then
@@ -18,13 +14,5 @@ for pkg in "$PKG_DIR"/*.apk; do
     logger -t uci-defaults "Installing $pkg"
     apk add --allow-untrusted --no-network "$pkg"
 done
-
-# Set marker and remove this script before rebooting
-touch "$MARKER"
-rm -f "$0"
-
-# Trigger a one-time reboot (in background so the script can finish cleanly)
-logger -t uci-defaults "Packages installed, rebooting"
-( sleep 2; reboot ) &
 
 exit 0
