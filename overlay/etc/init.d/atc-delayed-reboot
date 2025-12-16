@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+USE_PROCD=1
+
+FLAG=/tmp/atc-reboot.flag
+DELAY=60
+
+start_service() {
+    [ -f "$FLAG" ] || return 0
+
+    procd_open_instance
+    procd_set_param command /bin/sh -c "sleep $DELAY; rm -f $FLAG; reboot"
+    procd_set_param respawn 0 0 0
+    procd_close_instance
+}
