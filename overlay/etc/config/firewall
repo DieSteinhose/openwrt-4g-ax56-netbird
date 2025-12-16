@@ -20,7 +20,7 @@ config zone
         option mtu_fix '1'
         list network 'wan'
         list network 'wan6'
-        list network 'LTE'
+        list network 'lte'
 
 config forwarding
         option src 'lan'
