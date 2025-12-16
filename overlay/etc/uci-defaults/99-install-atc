@@ -2,7 +2,6 @@
 set -e
 
 PKG_DIR="/root/atc"
-REBOOT_FLAG="/tmp/atc-reboot.flag"
 
 # Ensure packages exist
 if ! ls "$PKG_DIR"/*.apk >/dev/null 2>&1; then
@@ -15,8 +14,5 @@ for pkg in "$PKG_DIR"/*.apk; do
     logger -t uci-defaults "Installing $pkg"
     apk add --allow-untrusted --no-network "$pkg"
 done
-
-# Set flag for delayed reboot (atc-delayed-reboot service checks this at boot)
-touch "$REBOOT_FLAG" 2>/dev/null || logger -t uci-defaults "Warning: cannot create $REBOOT_FLAG"
 
 exit 0

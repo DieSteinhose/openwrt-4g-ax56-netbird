@@ -3,17 +3,43 @@
 START=99
 USE_PROCD=1
 
-FLAG=/tmp/atc-reboot.flag
-DELAY=60
-
 boot() {
     start
 }
 
 start_service() {
-    logger -t atc-delayed-reboot "Service started, will check for flag after ${DELAY}s"
+    logger -t atc-delayed-reboot "Service started, monitoring for 'Modem not ready yet'"
     procd_open_instance
-    procd_set_param command /bin/sh -c "logger -t atc-delayed-reboot 'Waiting 60s before checking flag'; sleep 60; if [ -f /tmp/atc-reboot.flag ]; then logger -t atc-delayed-reboot 'Flag found, removing and rebooting'; rm -f /tmp/atc-reboot.flag; sync; reboot; else logger -t atc-delayed-reboot 'No flag found, exiting'; fi"
-    procd_set_param respawn 0 0 0
+    procd_set_param command /bin/sh -c '
+        COUNT=0
+        FIRST_TS=0
+        logread -f | while read LINE; do
+            if echo "$LINE" | grep -q "Modem not ready yet"; then
+                NOW=$(date +%s)
+                if [ "$COUNT" -eq 0 ]; then
+                    FIRST_TS=$NOW
+                    COUNT=1
+                    logger -t atc-delayed-reboot "Modem not ready (1/3)"
+                else
+                    ELAPSED=$((NOW - FIRST_TS))
+                    if [ "$ELAPSED" -le 90 ]; then
+                        COUNT=$((COUNT + 1))
+                        logger -t atc-delayed-reboot "Modem not ready ($COUNT/3) within 90s window"
+                        if [ "$COUNT" -ge 3 ]; then
+                            logger -t atc-delayed-reboot "Modem not ready 3 times in 90s, rebooting"
+                            sync
+                            reboot
+                            exit 0
+                        fi
+                    else
+                        FIRST_TS=$NOW
+                        COUNT=1
+                        logger -t atc-delayed-reboot "Modem not ready (1/3) - reset window"
+                    fi
+                fi
+            fi
+        done
+    '
+    procd_set_param respawn 3600 5 0
     procd_close_instance
 }
