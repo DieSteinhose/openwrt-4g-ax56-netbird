@@ -27,6 +27,13 @@ config forwarding
         option dest 'wan'
 
 config rule
+        option name 'Allow-DNS-Queries'
+        option src 'lan'
+        option dest_port '53'
+        option proto 'tcp udp'
+        option target 'ACCEPT'
+
+config rule
         option name 'Allow-DHCP-Renew'
         option src 'wan'
         option proto 'udp'
