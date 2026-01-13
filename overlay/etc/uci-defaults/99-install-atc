@@ -2,6 +2,7 @@
 set -e
 
 PKG_DIR="/root/atc"
+REBOOT_FLAG="/tmp/atc-reboot.flag"
 
 # Ensure packages exist
 if ! ls "$PKG_DIR"/*.apk >/dev/null 2>&1; then
@@ -14,5 +15,9 @@ for pkg in "$PKG_DIR"/*.apk; do
     logger -t uci-defaults "Installing $pkg"
     apk add --allow-untrusted --no-network "$pkg"
 done
+
+# Signal that a reboot should be performed by cron once installs are done
+touch "$REBOOT_FLAG"
+logger -t uci-defaults "Created reboot flag at $REBOOT_FLAG"
 
 exit 0
